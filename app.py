@@ -24,6 +24,7 @@ USERS = {
     "admin@ninjacart.com":                {"password": "Admin@123", "name": "Admin"},
     "mallikarjun.m@ninjacart.com":        {"password": "123456",    "name": "Mallikarjun M"},
     "ravikantbiradar872@ninjacart.com":   {"password": "123456",    "name": "Ravi Kant"},
+    "naveenarumugam@ninjacart.com":       {"password": "123456",    "name": "Naveen Arumugam"},
 }
 
 # Dropdown static options
