@@ -31,7 +31,7 @@ USERS = {
 CUSTOMER_OPTIONS    = ["Walk-in Customer", "Retail Shop", "Hotel / Restaurant",
                        "Institution", "Canteen", "Other"]
 CUSTOMER_NATURE     = ["PG","Horeca","PushCart","Others"]
-SALE_TYPE_OPTIONS   = ["DP Sales", "Line Sales", "Walk-in Sales"]
+SALE_TYPE_OPTIONS   = ["DP Sales", "Line Sales", "Walk-in Sales","Stock Not Received"]
 PAYMENT_TYPE_OPTIONS = ["Cash", "UPI", "Bank Transfer", "Cheque", "Credit"]
 CREDIT_DURATION_OPT = ["0 Days", "1 Days", "2 Days", "3 Days", ">3 Days"]
 
@@ -215,49 +215,52 @@ def show_record_sale():
     st.markdown("Select the Facility and SKU to view available return stock, then record the liquidation entry.")
     st.divider()
 
-    # ── Row 1: Dates ──
+    # ── Delivery Date ──
+    delivery_dates = get_delivery_dates()
+    if not delivery_dates:
+        st.warning("No delivery data found in FnV_Adhoc_Base.")
+        return
+    delivery_date = st.selectbox(
+        "📅 Delivery Date",
+        delivery_dates,
+        format_func=lambda d: d.strftime("%d %b %Y") if hasattr(d, "strftime") else str(d),
+    )
+
+    # ── Facility ──
+    facilities = get_facilities(delivery_date)
+    if not facilities:
+        st.warning("No facilities found for the selected delivery date.")
+        return
+    facility = st.selectbox("🏭 Facility", facilities)
+
+    # ── SKU ──
+    skus = get_skus(delivery_date, facility)
+    if not skus:
+        st.warning("No SKUs found for the selected facility and date.")
+        return
+    sku = st.selectbox("🛒 SKU", skus)
+
+    # ── Sale Date ──
+    sale_date = st.date_input("📅 Sale Date", value=date.today(), min_value=delivery_date)
+
+    # ── Customer ──
+    customers = get_customers()
+    customer_options = (customers or []) + ["➕ Add New Customer"]
+    selected_customer = st.selectbox("👤 Customer", customer_options)
+    if selected_customer == "➕ Add New Customer":
+        customer = st.text_input("Enter New Customer Name", placeholder="Type customer name here")
+        if not customer.strip():
+            st.warning("Please enter a customer name.")
+            return
+    else:
+        customer = selected_customer
+
+    # ── Customer Nature & Sale Type ──
     col1, col2 = st.columns(2)
     with col1:
-        delivery_dates = get_delivery_dates()
-        if not delivery_dates:
-            st.warning("No delivery data found in FnV_Adhoc_Base.")
-            return
-        delivery_date = st.selectbox(
-            "📅 Delivery Date",
-            delivery_dates,
-            format_func=lambda d: d.strftime("%d %b %Y") if hasattr(d, "strftime") else str(d),
-        )
-    with col2:
-        sale_date = st.date_input("📅 Sale Date", value=date.today(), min_value=delivery_date)
-
-    # ── Row 2: Customer info ──
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        customers = get_customers()
-        if customers:
-            customer = st.selectbox("👤 Customer", customers)
-        else:
-            customer = st.text_input("👤 Customer", placeholder="No customers yet — type name")
-    with col2:
         customer_nature = st.selectbox("🏷️ Customer Nature", CUSTOMER_NATURE)
-    with col3:
-        sale_type = st.selectbox("📦 Sale Type", SALE_TYPE_OPTIONS)
-
-    # ── Row 3: Facility → SKU ──
-    col1, col2 = st.columns(2)
-    with col1:
-        facilities = get_facilities(delivery_date)
-        if not facilities:
-            st.warning("No facilities found for the selected delivery date.")
-            return
-        facility = st.selectbox("🏭 Facility", facilities)
-
     with col2:
-        skus = get_skus(delivery_date, facility)
-        if not skus:
-            st.warning("No SKUs found for the selected facility and date.")
-            return
-        sku = st.selectbox("🛒 SKU", skus)
+        sale_type = st.selectbox("📦 Sale Type", SALE_TYPE_OPTIONS)
 
     # ── Return stock availability ──
     base_kg, base_value = get_base_row(delivery_date, facility, sku)
