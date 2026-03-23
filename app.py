@@ -38,7 +38,25 @@ CREDIT_DURATION_OPT = ["0 Days", "1 Days", "2 Days", "3 Days", ">3 Days"]
 # DATABASE HELPERS
 # ─────────────────────────────────────────────
 def get_connection():
-    return pymysql.connect(**DB_CONFIG)
+    # Check that secrets/env vars are loaded
+    if not DB_CONFIG["host"] or not DB_CONFIG["password"]:
+        st.error("❌ Database credentials not found. Please add secrets in Streamlit Cloud: Settings → Secrets.")
+        st.stop()
+    try:
+        return pymysql.connect(**DB_CONFIG)
+    except pymysql.err.OperationalError as e:
+        err_code = e.args[0]
+        if err_code == 2003:
+            st.error(
+                f"❌ Cannot connect to database at `{DB_CONFIG['host']}:{DB_CONFIG['port']}`. "
+                "The server may be blocking Streamlit Cloud IPs. "
+                "Please whitelist Streamlit Cloud on your DB firewall."
+            )
+        elif err_code == 1045:
+            st.error("❌ Database access denied. Check DB_USER and DB_PASSWORD in Secrets.")
+        else:
+            st.error(f"❌ Database connection error: {e}")
+        st.stop()
 
 
 def run_query(sql, params=None):
