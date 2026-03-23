@@ -30,7 +30,7 @@ USERS = {
 # Dropdown static options
 CUSTOMER_OPTIONS    = ["Walk-in Customer", "Retail Shop", "Hotel / Restaurant",
                        "Institution", "Canteen", "Other"]
-CUSTOMER_NATURE     = ["PG","Horeca","PushCart","Others"]
+CUSTOMER_NATURE     = ["PG","Horeca","PushCart","General Trade","Existing GT Customer","Others"]
 SALE_TYPE_OPTIONS   = ["DP Sales", "Line Sales", "Walk-in Sales","Stock Not Received"]
 PAYMENT_TYPE_OPTIONS = ["Cash", "UPI", "Bank Transfer", "Cheque", "Credit"]
 CREDIT_DURATION_OPT = ["0 Days", "1 Days", "2 Days", "3 Days", ">3 Days"]
@@ -397,55 +397,118 @@ def show_view_records():
     st.title("📊 Liquidation Sale Records")
     st.divider()
 
-    col1, col2 = st.columns([2, 1])
+    # ── Filters ──
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+
     with col1:
         delivery_dates = get_delivery_dates()
         filter_date = st.selectbox(
-            "Filter by Delivery Date",
+            "📅 Delivery Date",
             [None] + delivery_dates,
             format_func=lambda d: "All Dates" if d is None else (
                 d.strftime("%d %b %Y") if hasattr(d, "strftime") else str(d)
             ),
         )
+
+    # Load all records first so we can populate Facility/SKU filters
+    df_all = get_sale_records(filter_date)
+
     with col2:
+        facility_options = ["All Facilities"] + sorted(df_all["Facility"].dropna().unique().tolist())
+        filter_facility = st.selectbox("🏭 Facility", facility_options)
+
+    with col3:
+        if filter_facility != "All Facilities":
+            sku_options = ["All SKUs"] + sorted(
+                df_all[df_all["Facility"] == filter_facility]["Sku"].dropna().unique().tolist()
+            )
+        else:
+            sku_options = ["All SKUs"] + sorted(df_all["Sku"].dropna().unique().tolist())
+        filter_sku = st.selectbox("🛒 SKU", sku_options)
+
+    with col4:
         st.markdown("")
         st.markdown("")
         if st.button("🔄 Refresh"):
+            get_sale_records.clear() if hasattr(get_sale_records, "clear") else None
             st.rerun()
 
-    df = get_sale_records(filter_date)
+    # ── Apply filters ──
+    df = df_all.copy()
+    if filter_facility != "All Facilities":
+        df = df[df["Facility"] == filter_facility]
+    if filter_sku != "All SKUs":
+        df = df[df["Sku"] == filter_sku]
 
-    if df.empty:
+    if df_all.empty:
         st.info("No sale records found.")
         return
 
-    # Summary metrics
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total Records", len(df))
-    m2.metric("Total Liquidation Qty", f"{df['LiqudationKg'].sum():.2f} Kg")
-    m3.metric("Total Liquidation Value", f"₹{df['LiqudationValue'].sum():,.2f}")
+    # ── Summary metrics from FnV_Adhoc_Base for selected filters ──
+    st.divider()
+    st.markdown("#### 📦 Stock Summary")
+
+    # Build base query matching current filters
+    base_where = "WHERE 1=1"
+    base_params = []
+    if filter_date:
+        base_where += " AND DeliveryDate = %s"
+        base_params.append(filter_date)
+    if filter_facility != "All Facilities":
+        base_where += " AND Facility = %s"
+        base_params.append(filter_facility)
+    if filter_sku != "All SKUs":
+        base_where += " AND Sku = %s"
+        base_params.append(filter_sku)
+
+    df_base = run_query(
+        f"SELECT COALESCE(SUM(ReturnKg),0) AS total_return_kg, "
+        f"COALESCE(SUM(ReturnValue),0) AS total_return_value "
+        f"FROM FnV_Adhoc_Base {base_where}",
+        params=base_params if base_params else None,
+    )
+    total_return_kg    = float(df_base["total_return_kg"].iloc[0])
+    total_return_value = float(df_base["total_return_value"].iloc[0])
+    total_liq_kg       = float(df["LiqudationKg"].sum())
+    total_liq_value    = float(df["LiqudationValue"].sum())
+    available_kg       = max(0.0, total_return_kg - total_liq_kg)
+    available_value    = max(0.0, total_return_value - total_liq_value)
+
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    m1.metric("Total Return Qty",    f"{total_return_kg:,.2f} Kg")
+    m2.metric("Total Return Value",  f"₹{total_return_value:,.2f}")
+    m3.metric("Liquidated Qty",      f"{total_liq_kg:,.2f} Kg")
+    m4.metric("Liquidated Value",    f"₹{total_liq_value:,.2f}")
+    m5.metric("Available Qty",       f"{available_kg:,.2f} Kg",
+              delta=f"-{total_liq_kg:,.2f}" if total_liq_kg > 0 else None, delta_color="inverse")
+    m6.metric("Available Value",     f"₹{available_value:,.2f}",
+              delta=f"-₹{total_liq_value:,.2f}" if total_liq_value > 0 else None, delta_color="inverse")
 
     st.divider()
 
-    # Rename for display
-    display_df = df.rename(columns={
-        "Id": "ID",
-        "DeliveryDate": "Delivery Date",
-        "SaleDate": "Sale Date",
-        "LiqudationKg": "Liq. Qty (Kg)",
-        "LiqudationValue": "Liq. Value (₹)",
-        "ReturnKg": "Avail. Qty (Kg)",
-        "ReturnValue": "Avail. Value (₹)",
-        "PaymentType": "Payment",
-        "CreditDuration": "Credit",
-        "CustomerNature": "Cust. Nature",
-        "SaleType": "Sale Type",
-    })
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    # ── Records table ──
+    st.markdown(f"#### 🗒️ Records ({len(df)})")
 
-    # Download
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("⬇️ Download CSV", data=csv, file_name="adhoc_sale_records.csv", mime="text/csv")
+    if df.empty:
+        st.info("No records match the selected filters.")
+    else:
+        display_df = df.rename(columns={
+            "Id": "ID",
+            "DeliveryDate": "Delivery Date",
+            "SaleDate": "Sale Date",
+            "LiqudationKg": "Liq. Qty (Kg)",
+            "LiqudationValue": "Liq. Value (₹)",
+            "ReturnKg": "Return Qty (Kg)",
+            "ReturnValue": "Return Value (₹)",
+            "PaymentType": "Payment",
+            "CreditDuration": "Credit",
+            "CustomerNature": "Cust. Nature",
+            "SaleType": "Sale Type",
+        })
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("⬇️ Download CSV", data=csv, file_name="adhoc_sale_records.csv", mime="text/csv")
 
 
 # ─────────────────────────────────────────────
