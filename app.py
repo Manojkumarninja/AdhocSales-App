@@ -31,7 +31,7 @@ USERS = {
 CUSTOMER_OPTIONS    = ["Walk-in Customer", "Retail Shop", "Hotel / Restaurant",
                        "Institution", "Canteen", "Other"]
 CUSTOMER_NATURE     = ["PG","Horeca","PushCart","General Trade","Existing GT Customer","Others"]
-SALE_TYPE_OPTIONS   = ["DP Sales", "Line Sales", "Walk-in Sales","Stock Not Received"]
+SALE_TYPE_OPTIONS   = ["DP Sales", "Line Sales", "Walk-in Sales","Stock Not Received","Sku Damage"]
 PAYMENT_TYPE_OPTIONS = ["Cash", "UPI", "Bank Transfer", "Cheque", "Credit"]
 CREDIT_DURATION_OPT = ["0 Days", "1 Days", "2 Days", "3 Days", ">3 Days"]
 
