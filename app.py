@@ -36,7 +36,7 @@ SALE_TYPE_OPTIONS   = ["DP Sales", "Line Sales", "Walk-in Sales","Stock Not Rece
 PAYMENT_TYPE_OPTIONS = ["Cash", "UPI", "Bank Transfer", "Cheque", "Credit"]
 CREDIT_DURATION_OPT = ["0 Days", "1 Days", "2 Days", "3 Days", ">3 Days"]
 REASON_OPTIONS      = ["Quality Issue", "Weight Shortage", "Damages", "Item Missing",
-                       "Late Delivery", "Price Issue", "Random Returns", "Others"]
+                       "Late Delivery", "Price Issue", "Random Returns","Wrongly punched", "Others"]
 
 # ─────────────────────────────────────────────
 # DATABASE HELPERS
