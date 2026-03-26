@@ -35,6 +35,8 @@ CUSTOMER_NATURE     = ["PG","Horeca","PushCart","General Trade","Existing GT Cus
 SALE_TYPE_OPTIONS   = ["DP Sales", "Line Sales", "Walk-in Sales","Stock Not Received","Sku Damage"]
 PAYMENT_TYPE_OPTIONS = ["Cash", "UPI", "Bank Transfer", "Cheque", "Credit"]
 CREDIT_DURATION_OPT = ["0 Days", "1 Days", "2 Days", "3 Days", ">3 Days"]
+REASON_OPTIONS      = ["Quality Issue", "Weight Shortage", "Damages", "Item Missing",
+                       "Late Delivery", "Price Issue", "Random Returns", "Others"]
 
 # ─────────────────────────────────────────────
 # DATABASE HELPERS
@@ -256,12 +258,14 @@ def show_record_sale():
     else:
         customer = selected_customer
 
-    # ── Customer Nature & Sale Type ──
-    col1, col2 = st.columns(2)
+    # ── Customer Nature, Sale Type & Reason ──
+    col1, col2, col3 = st.columns(3)
     with col1:
         customer_nature = st.selectbox("🏷️ Customer Nature", CUSTOMER_NATURE)
     with col2:
         sale_type = st.selectbox("📦 Sale Type", SALE_TYPE_OPTIONS)
+    with col3:
+        reason = st.selectbox("❓ Reason for Return", REASON_OPTIONS)
 
     # ── Return stock availability ──
     base_kg, base_value = get_base_row(delivery_date, facility, sku)
@@ -366,8 +370,8 @@ def show_record_sale():
                        (DeliveryDate, SaleDate, Customer, CustomerNature, SaleType,
                         Facility, Sku, ReturnKg, ReturnValue, LiqudationKg,
                         LiqudationValue, PaymentType, CreditDuration,
-                        CreatedBy, CreatedAt, UpdatedBy, UpdatedAt)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                        CreatedBy, CreatedAt, UpdatedBy, UpdatedAt, Reason)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     params=(
                         delivery_date, sale_date, customer, customer_nature, sale_type,
                         facility, sku,
@@ -376,6 +380,7 @@ def show_record_sale():
                         payment_type, credit_duration,
                         st.session_state["username"], datetime.now(),
                         st.session_state["username"], datetime.now(),
+                        reason,
                     ),
                 )
                 st.success(
