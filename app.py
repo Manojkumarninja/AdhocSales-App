@@ -38,6 +38,12 @@ CREDIT_DURATION_OPT = ["0 Days", "1 Days", "2 Days", "3 Days", ">3 Days"]
 REASON_OPTIONS      = ["Quality Issue", "Weight Shortage", "Damages", "Item Missing",
                        "Late Delivery", "Price Issue", "Random Returns","Wrongly punched", "Others"]
 
+# City → table mapping
+CITY_TABLES = {
+    "Bengaluru": {"base": "FnV_Adhoc_Base",     "sale": "FnV_Adhoc_Sale"},
+    "Chennai":   {"base": "FnV_Adhoc_Base_Chn", "sale": "FnV_Adhoc_Sale_Chn"},
+}
+
 # ─────────────────────────────────────────────
 # DATABASE HELPERS
 # ─────────────────────────────────────────────
@@ -89,42 +95,37 @@ def run_write(sql, params=None):
 # DATA FETCH FUNCTIONS
 # ─────────────────────────────────────────────
 @st.cache_data(ttl=60)
-def get_delivery_dates():
+def get_delivery_dates(base_table):
     df = run_query(
-        "SELECT DISTINCT DeliveryDate FROM FnV_Adhoc_Base "
-        "ORDER BY DeliveryDate DESC"
+        f"SELECT DISTINCT DeliveryDate FROM {base_table} ORDER BY DeliveryDate DESC"
     )
     return [r for r in df["DeliveryDate"]]
 
 
 @st.cache_data(ttl=60)
-def get_facilities(delivery_date):
+def get_facilities(delivery_date, base_table):
     df = run_query(
-        "SELECT DISTINCT Facility FROM FnV_Adhoc_Base "
-        "WHERE DeliveryDate = %s AND Facility IS NOT NULL "
-        "ORDER BY Facility",
+        f"SELECT DISTINCT Facility FROM {base_table} "
+        "WHERE DeliveryDate = %s AND Facility IS NOT NULL ORDER BY Facility",
         params=(delivery_date,),
     )
     return df["Facility"].tolist()
 
 
 @st.cache_data(ttl=60)
-def get_skus(delivery_date, facility):
+def get_skus(delivery_date, facility, base_table):
     df = run_query(
-        "SELECT DISTINCT Sku FROM FnV_Adhoc_Base "
-        "WHERE DeliveryDate = %s AND Facility = %s AND Sku IS NOT NULL "
-        "ORDER BY Sku",
+        f"SELECT DISTINCT Sku FROM {base_table} "
+        "WHERE DeliveryDate = %s AND Facility = %s AND Sku IS NOT NULL ORDER BY Sku",
         params=(delivery_date, facility),
     )
     return df["Sku"].tolist()
 
 
-def get_base_row(delivery_date, facility, sku):
-    """Returns (ReturnKg, ReturnValue) from FnV_Adhoc_Base."""
+def get_base_row(delivery_date, facility, sku, base_table):
     df = run_query(
-        "SELECT ReturnKg, ReturnValue FROM FnV_Adhoc_Base "
-        "WHERE DeliveryDate = %s AND Facility = %s AND Sku = %s "
-        "LIMIT 1",
+        f"SELECT ReturnKg, ReturnValue FROM {base_table} "
+        "WHERE DeliveryDate = %s AND Facility = %s AND Sku = %s LIMIT 1",
         params=(delivery_date, facility, sku),
     )
     if df.empty:
@@ -132,11 +133,9 @@ def get_base_row(delivery_date, facility, sku):
     return float(df["ReturnKg"].iloc[0] or 0), float(df["ReturnValue"].iloc[0] or 0)
 
 
-def get_already_liquidated(delivery_date, facility, sku):
-    """Sum of LiqudationKg already recorded in FnV_Adhoc_Sale."""
+def get_already_liquidated(delivery_date, facility, sku, sale_table):
     df = run_query(
-        "SELECT COALESCE(SUM(LiqudationKg), 0) AS used_kg "
-        "FROM FnV_Adhoc_Sale "
+        f"SELECT COALESCE(SUM(LiqudationKg), 0) AS used_kg FROM {sale_table} "
         "WHERE DeliveryDate = %s AND Facility = %s AND Sku = %s",
         params=(delivery_date, facility, sku),
     )
@@ -144,23 +143,22 @@ def get_already_liquidated(delivery_date, facility, sku):
 
 
 @st.cache_data(ttl=60)
-def get_customers():
+def get_customers(sale_table):
     df = run_query(
-        "SELECT DISTINCT Customer FROM FnV_Adhoc_Sale "
-        "WHERE Customer IS NOT NULL AND Customer != '' "
-        "ORDER BY Customer"
+        f"SELECT DISTINCT Customer FROM {sale_table} "
+        "WHERE Customer IS NOT NULL AND Customer != '' ORDER BY Customer"
     )
     return df["Customer"].tolist()
 
 
-def get_sale_records(delivery_date=None):
+def get_sale_records(sale_table, delivery_date=None):
     where = "WHERE 1=1"
     params = []
     if delivery_date:
         where += " AND DeliveryDate = %s"
         params.append(delivery_date)
     df = run_query(
-        f"SELECT * FROM FnV_Adhoc_Sale {where} ORDER BY Id DESC",
+        f"SELECT * FROM {sale_table} {where} ORDER BY Id DESC",
         params=params if params else None,
     )
     return df
@@ -198,6 +196,10 @@ def show_app():
     with st.sidebar:
         st.markdown(f"### 👤 {st.session_state['display_name']}")
         st.divider()
+        city = st.selectbox("🏙️ City", list(CITY_TABLES.keys()))
+        base_table = CITY_TABLES[city]["base"]
+        sale_table = CITY_TABLES[city]["sale"]
+        st.divider()
         page = st.radio("Navigation", ["📋 Record Sale", "📊 View Records"])
         st.divider()
         if st.button("🚪 Logout"):
@@ -205,23 +207,23 @@ def show_app():
             st.rerun()
 
     if page == "📋 Record Sale":
-        show_record_sale()
+        show_record_sale(base_table, sale_table)
     else:
-        show_view_records()
+        show_view_records(base_table, sale_table)
 
 
 # ─────────────────────────────────────────────
 # RECORD SALE PAGE
 # ─────────────────────────────────────────────
-def show_record_sale():
+def show_record_sale(base_table, sale_table):
     st.title("📋 Record Adhoc Liquidation Sale")
     st.markdown("Select the Facility and SKU to view available return stock, then record the liquidation entry.")
     st.divider()
 
     # ── Delivery Date ──
-    delivery_dates = get_delivery_dates()
+    delivery_dates = get_delivery_dates(base_table)
     if not delivery_dates:
-        st.warning("No delivery data found in FnV_Adhoc_Base.")
+        st.warning("No delivery data found.")
         return
     delivery_date = st.selectbox(
         "📅 Delivery Date",
@@ -230,14 +232,14 @@ def show_record_sale():
     )
 
     # ── Facility ──
-    facilities = get_facilities(delivery_date)
+    facilities = get_facilities(delivery_date, base_table)
     if not facilities:
         st.warning("No facilities found for the selected delivery date.")
         return
     facility = st.selectbox("🏭 Facility", facilities)
 
     # ── SKU ──
-    skus = get_skus(delivery_date, facility)
+    skus = get_skus(delivery_date, facility, base_table)
     if not skus:
         st.warning("No SKUs found for the selected facility and date.")
         return
@@ -247,7 +249,7 @@ def show_record_sale():
     sale_date = st.date_input("📅 Sale Date", value=date.today(), min_value=delivery_date)
 
     # ── Customer ──
-    customers = get_customers()
+    customers = get_customers(sale_table)
     customer_options = (customers or []) + ["➕ Add New Customer"]
     selected_customer = st.selectbox("👤 Customer", customer_options)
     if selected_customer == "➕ Add New Customer":
@@ -268,8 +270,8 @@ def show_record_sale():
         reason = st.selectbox("❓ Reason for Return", REASON_OPTIONS)
 
     # ── Return stock availability ──
-    base_kg, base_value = get_base_row(delivery_date, facility, sku)
-    already_used_kg = get_already_liquidated(delivery_date, facility, sku)
+    base_kg, base_value = get_base_row(delivery_date, facility, sku, base_table)
+    already_used_kg = get_already_liquidated(delivery_date, facility, sku, sale_table)
 
     if base_kg is None:
         st.error("Could not fetch base data for selected SKU.")
@@ -366,7 +368,7 @@ def show_record_sale():
         else:
             try:
                 run_write(
-                    """INSERT INTO FnV_Adhoc_Sale
+                    f"""INSERT INTO {sale_table}
                        (DeliveryDate, SaleDate, Customer, CustomerNature, SaleType,
                         Facility, Sku, ReturnKg, ReturnValue, LiqudationKg,
                         LiqudationValue, PaymentType, CreditDuration,
@@ -399,7 +401,7 @@ def show_record_sale():
 # ─────────────────────────────────────────────
 # VIEW RECORDS PAGE
 # ─────────────────────────────────────────────
-def show_view_records():
+def show_view_records(base_table, sale_table):
     st.title("📊 Liquidation Sale Records")
     st.divider()
 
@@ -407,7 +409,7 @@ def show_view_records():
     col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
 
     with col1:
-        delivery_dates = get_delivery_dates()
+        delivery_dates = get_delivery_dates(base_table)
         filter_date = st.selectbox(
             "📅 Delivery Date",
             [None] + delivery_dates,
@@ -417,7 +419,7 @@ def show_view_records():
         )
 
     # Load all records first so we can populate Facility/SKU filters
-    df_all = get_sale_records(filter_date)
+    df_all = get_sale_records(sale_table, filter_date)
 
     with col2:
         facility_options = ["All Facilities"] + sorted(df_all["Facility"].dropna().unique().tolist())
@@ -470,7 +472,7 @@ def show_view_records():
     df_base = run_query(
         f"SELECT COALESCE(SUM(ReturnKg),0) AS total_return_kg, "
         f"COALESCE(SUM(ReturnValue),0) AS total_return_value "
-        f"FROM FnV_Adhoc_Base {base_where}",
+        f"FROM {base_table} {base_where}",
         params=base_params if base_params else None,
     )
     total_return_kg    = float(df_base["total_return_kg"].iloc[0])
