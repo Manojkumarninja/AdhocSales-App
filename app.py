@@ -27,6 +27,7 @@ USERS = {
     "ravikantbiradar872@ninjacart.com":   {"password": "123456",    "name": "Ravi Kant",        "cities": ["Bengaluru"]},
     "naveenarumugam@ninjacart.com":       {"password": "123456",    "name": "Naveen Arumugam",  "cities": ["Bengaluru"]},
     "abishanbarasan@ninjacart.com":       {"password": "123456",    "name": "Abishan Barasan",  "cities": ["Bengaluru"]},
+    "pradeep.es@ninjacart.com":       {"password": "123456",    "name": "Pradeep ES",  "cities": ["Chennai"]},
 }
 
 # Dropdown static options
