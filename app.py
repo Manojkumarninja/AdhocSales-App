@@ -19,13 +19,14 @@ DB_CONFIG = {
     "charset": "utf8mb4",
 }
 
-# Login credentials  (email → {password, display_name})
+# Login credentials  (email → {password, display_name, cities})
+# cities: list of allowed cities. Use ["Bengaluru", "Chennai"] for all-access (admin).
 USERS = {
-    "admin@ninjacart.com":                {"password": "Admin@123", "name": "Admin"},
-    "mallikarjun.m@ninjacart.com":        {"password": "123456",    "name": "Mallikarjun M"},
-    "ravikantbiradar872@ninjacart.com":   {"password": "123456",    "name": "Ravi Kant"},
-    "naveenarumugam@ninjacart.com":       {"password": "123456",    "name": "Naveen Arumugam"},
-    "abishanbarasan@ninjacart.com":       {"password": "123456",    "name": "Abishan Barasan"},
+    "admin@ninjacart.com":                {"password": "Admin@123", "name": "Admin",            "cities": ["Bengaluru", "Chennai"]},
+    "mallikarjun.m@ninjacart.com":        {"password": "123456",    "name": "Mallikarjun M",    "cities": ["Bengaluru"]},
+    "ravikantbiradar872@ninjacart.com":   {"password": "123456",    "name": "Ravi Kant",        "cities": ["Bengaluru"]},
+    "naveenarumugam@ninjacart.com":       {"password": "123456",    "name": "Naveen Arumugam",  "cities": ["Bengaluru"]},
+    "abishanbarasan@ninjacart.com":       {"password": "123456",    "name": "Abishan Barasan",  "cities": ["Bengaluru"]},
 }
 
 # Dropdown static options
@@ -181,6 +182,7 @@ def show_login():
                 st.session_state["logged_in"] = True
                 st.session_state["username"] = username
                 st.session_state["display_name"] = USERS[username]["name"]
+                st.session_state["allowed_cities"] = USERS[username]["cities"]
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
@@ -196,7 +198,12 @@ def show_app():
     with st.sidebar:
         st.markdown(f"### 👤 {st.session_state['display_name']}")
         st.divider()
-        city = st.selectbox("🏙️ City", list(CITY_TABLES.keys()))
+        allowed_cities = st.session_state.get("allowed_cities", [])
+        if len(allowed_cities) == 1:
+            city = allowed_cities[0]
+            st.markdown(f"🏙️ **City:** {city}")
+        else:
+            city = st.selectbox("🏙️ City", allowed_cities)
         base_table = CITY_TABLES[city]["base"]
         sale_table = CITY_TABLES[city]["sale"]
         st.divider()
