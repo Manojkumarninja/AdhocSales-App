@@ -94,7 +94,7 @@ def get_customers(delivery_date, facility_id):
     df = run_query(
         f"SELECT Id, CustomerId, Customer, SaleOrderId, OrderKg, BilledKg, "
         f"FulfilledKg, ReturnKg, TotalInvoiceValue, PaymentStatus, OutstandingAmount, "
-        f"PaymentMode, CreditDuration "
+        f"PaymentMode, CreditDuration, CollectionTimeWindow "
         f"FROM {TABLE} "
         f"WHERE DeliveryDate = %s AND FacilityId = %s "
         f"ORDER BY Customer",
