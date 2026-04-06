@@ -27,9 +27,10 @@ USERS = {
     "pradeep.es@ninjacart.com":     {"password": "123456",    "name": "Pradeep ES"},
 }
 
-PAYMENT_STATUS_OPTIONS = ["Paid", "Partial", "Pending", "Credit"]
-PAYMENT_MODE_OPTIONS   = ["Cash", "UPI", "Bank Transfer", "Cheque", "Credit"]
-CREDIT_DURATION_OPT    = ["0 Days", "1 Days", "2 Days", "3 Days", ">3 Days"]
+PAYMENT_STATUS_OPTIONS      = ["Paid", "Partial", "Pending", "Credit"]
+PAYMENT_MODE_OPTIONS        = ["Cash", "UPI", "Bank Transfer", "Cheque", "Credit"]
+CREDIT_DURATION_OPT         = ["0 Days", "1 Days", "2 Days", "3 Days", ">3 Days"]
+COLLECTION_TIME_WINDOW_OPT  = ["While Delivery", "Before 5 PM", "5 PM to 8:30 PM", "After 8:30 PM", "Next Day"]
 
 # ─────────────────────────────────────────────
 # DATABASE HELPERS
@@ -259,6 +260,10 @@ def show_update_payment():
         else:
             credit_duration = None
 
+    current_ctw = selected["CollectionTimeWindow"] if pd.notna(selected["CollectionTimeWindow"]) else COLLECTION_TIME_WINDOW_OPT[0]
+    ctw_idx = COLLECTION_TIME_WINDOW_OPT.index(current_ctw) if current_ctw in COLLECTION_TIME_WINDOW_OPT else 0
+    collection_time_window = st.selectbox("🕐 Collection Time Window", COLLECTION_TIME_WINDOW_OPT, index=ctw_idx)
+
     # ── Submit ──
     st.divider()
     if st.button("✅ Save Payment Details", type="primary", use_container_width=True):
@@ -278,8 +283,8 @@ def show_update_payment():
             try:
                 run_write(
                     f"UPDATE {TABLE} SET PaymentStatus=%s, OutstandingAmount=%s, "
-                    f"PaymentMode=%s, CreditDuration=%s WHERE Id=%s",
-                    params=(payment_status, outstanding, payment_mode, credit_duration, selected_row_id),
+                    f"PaymentMode=%s, CreditDuration=%s, CollectionTimeWindow=%s WHERE Id=%s",
+                    params=(payment_status, outstanding, payment_mode, credit_duration, collection_time_window, selected_row_id),
                 )
                 st.success(
                     f"✅ Payment updated for **{selected['Customer']}** — "
