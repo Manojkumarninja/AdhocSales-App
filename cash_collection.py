@@ -27,7 +27,7 @@ USERS = {
     "pradeep.es@ninjacart.com":     {"password": "123456",    "name": "Pradeep ES"},
 }
 
-PAYMENT_STATUS_OPTIONS      = ["Paid", "Partially Paid", "Fully Paid"]
+PAYMENT_STATUS_OPTIONS      = ["Paid", "Not Paid", "Partially Paid"]
 PAYMENT_MODE_OPTIONS        = ["Cash", "UPI", "Bank Transfer", "Cheque", "Credit"]
 CREDIT_DURATION_OPT         = ["0 Days", "1 Days", "2 Days", "3 Days", ">3 Days"]
 COLLECTION_TIME_WINDOW_OPT  = ["While Delivery", "Before 5 PM", "5 PM to 8:30 PM", "After 8:30 PM", "Next Day"]
