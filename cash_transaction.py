@@ -385,6 +385,18 @@ def show_record_transaction():
     with col2:
         st.text_input("Payment Status", value=status_preview, disabled=True)
 
+    col1, col2 = st.columns(2)
+    with col1:
+        remark = st.selectbox("📝 ReMark", ["Credit", "Others"])
+    with col2:
+        collection_window = st.selectbox("🕐 Collection Window",
+                                         ["Time of Delivery", "Before 5", "After 5", "Next Day"])
+    if remark == "Others":
+        remark_reason = st.text_area("Reason", placeholder="Enter reason (max 400 characters)",
+                                     max_chars=400)
+    else:
+        remark_reason = remark
+
     # ── Submit ──
     st.divider()
     if st.button("✅ Save Transaction", type="primary", use_container_width=True):
@@ -413,12 +425,14 @@ def show_record_transaction():
                 run_write(
                     f"""INSERT INTO {TRANSACTION_TABLE}
                         (SaleOrderId, TransactionId, AmountPaid, PaymentMode,
-                         OustandingAmount, PaymentStatus, CreatedBy, UpdatedBy, CreatedAt, UpdatedAt)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                         OustandingAmount, PaymentStatus, ReMark, CollectionWindow,
+                         CreatedBy, UpdatedBy, CreatedAt, UpdatedAt)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     params=(
                         int(selected_order_id), next_txn_id,
                         round(amount_paid, 4), payment_mode,
                         outstanding, pay_status,
+                        remark_reason, collection_window,
                         st.session_state["username"], st.session_state["username"],
                         datetime.now(), datetime.now(),
                     ),
@@ -477,7 +491,7 @@ def show_view_records():
             get_drivers.clear()
             st.rerun()
 
-    # Join base + transactions
+    # ── Build driver-wise summary query ──
     where = ["1=1"]
     params = []
     if filter_date:
@@ -487,44 +501,48 @@ def show_view_records():
         where.append("b.FacilityId = %s")
         params.append(filter_facility)
 
-    df = run_query(f"""
+    summary_df = run_query(f"""
         SELECT
-            b.DeliveryDate, b.FacilityId, b.Facility, b.CustomerId, b.Customer,
-            b.SaleOrderId, b.OrderMode, b.Driver,
-            b.InvoiceAmount, b.UPIAmount, b.CashAmount,
-            t.TransactionId, t.AmountPaid, t.PaymentMode,
-            t.OustandingAmount, t.PaymentStatus,
-            t.CreatedBy, t.CreatedAt
+            b.Driver,
+            b.Facility,
+            COUNT(DISTINCT b.SaleOrderId)            AS TotalOrders,
+            SUM(b.InvoiceAmount)                     AS TotalInvoiceValue,
+            COALESCE(SUM(t.AmountPaid), 0)           AS AmountCollected,
+            SUM(b.CashAmount) - COALESCE(SUM(t.AmountPaid), 0) AS AmountPending
         FROM {BASE_TABLE} b
         LEFT JOIN {TRANSACTION_TABLE} t ON b.SaleOrderId = t.SaleOrderId
         WHERE {' AND '.join(where)}
-        ORDER BY b.DeliveryDate DESC, b.Facility, b.Customer, t.TransactionId
+        GROUP BY b.Driver, b.Facility
+        ORDER BY b.Facility, b.Driver
     """, params=params if params else None)
 
-    if df.empty:
+    if summary_df.empty:
         st.info("No records found.")
         return
 
+    # Overall metrics
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Orders",       df["SaleOrderId"].nunique())
-    m2.metric("Total Transactions", df["TransactionId"].notna().sum())
-    m3.metric("Total Collected (₹)",f"₹{df['AmountPaid'].sum():,.2f}")
-    m4.metric("Total Outstanding (₹)", f"₹{df['OustandingAmount'].sum():,.2f}")
+    m1.metric("Total Orders",          int(summary_df["TotalOrders"].sum()))
+    m2.metric("Total Invoice (₹)",     f"₹{summary_df['TotalInvoiceValue'].sum():,.2f}")
+    m3.metric("Total Collected (₹)",   f"₹{summary_df['AmountCollected'].sum():,.2f}")
+    m4.metric("Total Pending (₹)",     f"₹{summary_df['AmountPending'].sum():,.2f}")
 
     st.divider()
-    st.dataframe(df.rename(columns={
-        "DeliveryDate": "Date", "FacilityId": "Fac. ID",
-        "CustomerId": "Cust. ID", "SaleOrderId": "Order ID",
-        "OrderMode": "Mode", "InvoiceAmount": "Invoice (₹)",
-        "UPIAmount": "UPI (₹)", "CashAmount": "Cash (₹)",
-        "TransactionId": "Txn #", "AmountPaid": "Paid (₹)",
-        "PaymentMode": "Pay Mode", "OustandingAmount": "Outstanding (₹)",
-        "PaymentStatus": "Status", "CreatedBy": "Recorded By", "CreatedAt": "Recorded At",
-    }), use_container_width=True, hide_index=True)
+    st.markdown("#### 🧑‍✈️ Driver-wise Summary")
+    st.dataframe(
+        summary_df.rename(columns={
+            "Driver": "Driver", "Facility": "Facility",
+            "TotalOrders": "Total Orders",
+            "TotalInvoiceValue": "Invoice Value (₹)",
+            "AmountCollected": "Collected (₹)",
+            "AmountPending": "Pending (₹)",
+        }),
+        use_container_width=True, hide_index=True,
+    )
 
-    csv = df.to_csv(index=False).encode("utf-8")
+    csv = summary_df.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Download CSV", data=csv,
-                       file_name="cash_transactions.csv", mime="text/csv")
+                       file_name="driver_summary.csv", mime="text/csv")
 
 
 # ─────────────────────────────────────────────
