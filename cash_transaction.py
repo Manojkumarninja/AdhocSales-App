@@ -247,12 +247,30 @@ def show_record_transaction():
     fully_paid        = total_customers - pending_customers
 
     st.divider()
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Total Customers",    total_customers)
-    m2.metric("Pending Collection", pending_customers)
-    m3.metric("Fully Paid",         fully_paid)
-    m4.metric("Total Cash Expected",f"₹{customers_df['CashAmount'].sum():,.2f}")
-    m5.metric("Total Pending (₹)",  f"₹{customers_df['PendingAmount'].sum():,.2f}")
+    st.markdown(f"""
+    <div style="display:flex;gap:12px;flex-wrap:nowrap;overflow-x:auto;padding:8px 0">
+        <div style="flex:1;min-width:100px;background:#f0f2f6;border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:11px;color:#666">Total Customers</div>
+            <div style="font-size:22px;font-weight:700">{total_customers}</div>
+        </div>
+        <div style="flex:1;min-width:100px;background:#fff3cd;border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:11px;color:#666">Pending</div>
+            <div style="font-size:22px;font-weight:700;color:#856404">{pending_customers}</div>
+        </div>
+        <div style="flex:1;min-width:100px;background:#d4edda;border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:11px;color:#666">Fully Paid</div>
+            <div style="font-size:22px;font-weight:700;color:#155724">{fully_paid}</div>
+        </div>
+        <div style="flex:1;min-width:100px;background:#f0f2f6;border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:11px;color:#666">Cash Expected</div>
+            <div style="font-size:18px;font-weight:700">₹{customers_df['CashAmount'].sum():,.0f}</div>
+        </div>
+        <div style="flex:1;min-width:100px;background:#f8d7da;border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:11px;color:#666">Total Pending</div>
+            <div style="font-size:18px;font-weight:700;color:#721c24">₹{customers_df['PendingAmount'].sum():,.0f}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # ── Step 2: Customer Selection ──
     st.divider()
@@ -286,15 +304,35 @@ def show_record_transaction():
     # ── Order Details (Read-only) ──
     st.divider()
     st.markdown("#### 📦 Order Details")
-    d1, d2, d3, d4, d5, d6 = st.columns(6)
-    d1.metric("Invoice (₹)",      f"₹{selected['InvoiceAmount']:,.2f}")
-    d2.metric("UPI/Wallet (₹)",   f"₹{selected['UPIAmount']:,.2f}" if pd.notna(selected["UPIAmount"]) and selected["UPIAmount"] else "₹0.00")
-    d3.metric("Cash (₹)",         f"₹{selected['CashAmount']:,.2f}")
-    d4.metric("Paid So Far (₹)",  f"₹{selected['TotalPaid']:,.2f}")
-    d5.metric("Pending (₹)",      f"₹{selected['PendingAmount']:,.2f}",
-              delta=f"-₹{selected['TotalPaid']:,.2f}" if selected["TotalPaid"] > 0 else None,
-              delta_color="inverse")
-    d6.metric("Txn #",            int(selected["TransactionCount"]) + 1)
+    upi_val = f"₹{selected['UPIAmount']:,.0f}" if pd.notna(selected["UPIAmount"]) and selected["UPIAmount"] else "₹0"
+    st.markdown(f"""
+    <div style="display:flex;gap:10px;flex-wrap:nowrap;overflow-x:auto;padding:8px 0">
+        <div style="flex:1;min-width:90px;background:#f0f2f6;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:#666">Invoice (₹)</div>
+            <div style="font-size:16px;font-weight:700">₹{selected['InvoiceAmount']:,.0f}</div>
+        </div>
+        <div style="flex:1;min-width:90px;background:#f0f2f6;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:#666">UPI/Wallet (₹)</div>
+            <div style="font-size:16px;font-weight:700">{upi_val}</div>
+        </div>
+        <div style="flex:1;min-width:90px;background:#f0f2f6;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:#666">Cash (₹)</div>
+            <div style="font-size:16px;font-weight:700">₹{selected['CashAmount']:,.0f}</div>
+        </div>
+        <div style="flex:1;min-width:90px;background:#d4edda;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:#666">Paid So Far (₹)</div>
+            <div style="font-size:16px;font-weight:700;color:#155724">₹{selected['TotalPaid']:,.0f}</div>
+        </div>
+        <div style="flex:1;min-width:90px;background:#f8d7da;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:#666">Pending (₹)</div>
+            <div style="font-size:16px;font-weight:700;color:#721c24">₹{selected['PendingAmount']:,.0f}</div>
+        </div>
+        <div style="flex:1;min-width:70px;background:#f0f2f6;border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:#666">Txn #</div>
+            <div style="font-size:16px;font-weight:700">{int(selected['TransactionCount']) + 1}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # ── Existing Transactions ──
     existing_txns = get_transactions_for_order(selected_order_id)
